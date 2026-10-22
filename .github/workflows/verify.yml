@@ -1,0 +1,39 @@
+name: Verify free cloud PDF engine
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cloud-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the standalone cloud image
+        run: docker build -t mizan-test .
+      - name: Start with the real 512 MB memory ceiling
+        run: docker run -d --name mizan --memory=512m --memory-swap=512m --cpus=1 -p 10000:10000 mizan-test
+      - name: Exercise real OCR, translation, PDF and protection
+        run: |
+          unzip -p source-bundle.zip scripts/cloud-smoke.py > /tmp/cloud-smoke.py
+          docker cp /tmp/cloud-smoke.py mizan:/tmp/cloud-smoke.py
+          docker exec mizan python /tmp/cloud-smoke.py | tee cloud-test.log
+      - name: Record memory peak and logs
+        if: always()
+        run: |
+          docker stats --no-stream mizan > memory.txt || true
+          docker exec mizan cat /sys/fs/cgroup/memory.peak >> memory.txt || true
+          docker logs mizan > server.log 2>&1 || true
+          docker cp mizan:/tmp/test-results ./test-results || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-ocr-verification
+          path: |
+            test-results
+            cloud-test.log
+            memory.txt
+            server.log
+          retention-days: 3
