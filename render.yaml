@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: mizan-research-studio
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
